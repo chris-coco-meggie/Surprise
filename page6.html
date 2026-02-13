@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>第六章：爱心派对 - 默契大考验</title>
+    <style>
+        :root { --primary: #ffafbd; --accent: #d46a7e; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #fff5f7; overflow: hidden; font-family: 'Microsoft YaHei', sans-serif; }
+        
+        #game-container { position: relative; width: 100%; height: 100%; cursor: none; }
+        
+        /* 玩家篮子 */
+        #basket { 
+            position: absolute; bottom: 20px; width: 100px; height: 60px; 
+            background: #fff; border: 3px solid var(--primary); border-radius: 50% 50% 15px 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: center; font-size: 30px; z-index: 10;
+        }
+
+        /* 状态栏 */
+        .stats { position: absolute; top: 20px; left: 20px; font-size: 20px; color: var(--accent); font-weight: bold; z-index: 100; pointer-events: none; }
+        .stats div { margin-bottom: 5px; }
+
+        /* 掉落物样式 */
+        .item { position: absolute; font-size: 35px; user-select: none; }
+
+        /* 遮罩层样式 */
+        .overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255, 255, 255, 0.9); display: none;
+            flex-direction: column; align-items: center; justify-content: center; z-index: 1000;
+        }
+        .overlay h2 { color: var(--accent); font-size: 30px; margin-bottom: 20px; }
+        .btn-next {
+            padding: 15px 40px; background: var(--accent); color: white;
+            text-decoration: none; border-radius: 30px; font-weight: bold;
+            box-shadow: 0 5px 15px rgba(212, 106, 126, 0.3); transition: 0.3s;
+            border: none; cursor: pointer; font-size: 16px;
+        }
+        .btn-next:hover { transform: scale(1.1); }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div class="stats">
+        <div>收集进度: <span id="score">0</span> / 18</div>
+        <div>生命值: <span id="lives">❤️❤️❤️</span></div>
+    </div>
+    <div id="basket">🧺</div>
+</div>
+
+<div id="overlay" class="overlay">
+    <h2 id="result-title">游戏结束</h2>
+    <p id="result-msg" style="margin-bottom:30px; color: #777;"></p>
+    <div id="action-area"></div>
+</div>
+
+<script>
+    const container = document.getElementById('game-container');
+    const basket = document.getElementById('basket');
+    const scoreEl = document.getElementById('score');
+    const livesEl = document.getElementById('lives');
+    const overlay = document.getElementById('overlay');
+    
+    let score = 0;
+    let lives = 3;
+    let isGameOver = false;
+    let basketX = window.innerWidth / 2 - 50;
+
+    const items = [
+        { char: '❤️', type: 'good' },
+        { char: '🌟', type: 'good' },
+        { char: '🎁', type: 'good' },
+        { char: '🍬', type: 'good' },
+        { char: '💣', type: 'bad' } 
+    ];
+
+    const moveHandler = (e) => {
+        if (isGameOver) return;
+        const x = e.touches ? e.touches[0].clientX : e.clientX;
+        basketX = x - 50;
+        if (basketX < 0) basketX = 0;
+        if (basketX > window.innerWidth - 100) basketX = window.innerWidth - 100;
+        basket.style.left = basketX + 'px';
+    };
+
+    document.addEventListener('mousemove', moveHandler);
+    document.addEventListener('touchmove', moveHandler);
+
+    function createItem() {
+        if (isGameOver) return;
+
+        const itemData = items[Math.floor(Math.random() * items.length)];
+        const item = document.createElement('div');
+        item.className = 'item';
+        item.innerText = itemData.char;
+        item.style.left = Math.random() * (window.innerWidth - 40) + 'px';
+        item.style.top = '-50px';
+        container.appendChild(item);
+
+        let top = -50;
+        let speed = 4 + Math.random() * 3;
+
+        const fall = setInterval(() => {
+            if (isGameOver) {
+                clearInterval(fall);
+                item.remove();
+                return;
+            }
+
+            top += speed;
+            item.style.top = top + 'px';
+
+            const itemRect = item.getBoundingClientRect();
+            const basketRect = basket.getBoundingClientRect();
+
+            if (itemRect.bottom >= basketRect.top && 
+                itemRect.right >= basketRect.left && 
+                itemRect.left <= basketRect.right &&
+                itemRect.top <= basketRect.bottom) {
+                
+                clearInterval(fall);
+                item.remove();
+                handleCatch(itemData.type);
+            }
+
+            // 核心逻辑：漏接检测
+            if (top > window.innerHeight) {
+                clearInterval(fall);
+                item.remove();
+                // 只要不是炸弹，漏接了就要扣命
+                if (itemData.type === 'good') {
+                    updateLives(-1);
+                }
+            }
+        }, 20);
+
+        setTimeout(createItem, 900);
+    }
+
+    function handleCatch(type) {
+        if (type === 'bad') {
+            updateLives(-1);
+        } else {
+            score++;
+            scoreEl.innerText = score;
+            if (score >= 18) endGame(true); // 改为18个通关
+        }
+    }
+
+    function updateLives(change) {
+        lives += change;
+        if (lives <= 0) {
+            lives = 0;
+            livesEl.innerText = '💔';
+            endGame(false);
+        } else {
+            livesEl.innerText = '❤️'.repeat(lives);
+        }
+    }
+
+    function endGame(isWin) {
+        isGameOver = true;
+        overlay.style.display = 'flex';
+        const title = document.getElementById('result-title');
+        const msg = document.getElementById('result-msg');
+        const action = document.getElementById('action-area');
+
+        if (isWin) {
+            title.innerText = "🎉 挑战成功！";
+            msg.innerText = "猪猪接住了 18 个心愿，默契值爆表！";
+            action.innerHTML = `<a href="page7.html" class="btn-next">查看最终惊喜 ➔</a>`;
+        } else {
+            title.innerText = "💥 任务失败";
+            msg.innerText = "漏接了心愿或者抓到了炸弹...再试一次？";
+            action.innerHTML = `<button onclick="location.reload()" class="btn-next">重新开始</button>`;
+        }
+    }
+
+    basket.style.left = basketX + 'px';
+    setTimeout(createItem, 1000);
+</script>
+</body>
+</html>

@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>拼出我们的爱 ❤️</title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            background: linear-gradient(to bottom right, #f0f9ff, #e0f2fe, #bae6fd);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+            position: relative; /* 为绝对定位的箭头提供参考 */
+        }
+
+        h1 { color: #0ea5e9; margin-bottom: 10px; text-align: center;}
+        p.tip { color: #64748b; font-size: 0.9rem; margin-bottom: 20px; text-align: center;}
+
+        /* --- 拼图容器 --- */
+        #puzzle-container {
+            width: 300px;
+            height: 300px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 2px;
+            border: 3px solid #fff;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+            background-color: #bae6fd;
+            border-radius: 4px;
+        }
+
+        .puzzle-piece {
+            width: 100%;
+            height: 100%;
+            background-image: url('puzzle.jpg'); 
+            background-size: 300px 300px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            border-radius: 2px;
+        }
+
+        .selected {
+            transform: scale(0.95);
+            box-shadow: 0 0 0 3px #ff4b4b;
+            z-index: 10;
+        }
+
+        /* --- 成功信息 --- */
+        #success-message {
+            display: none;
+            margin-top: 30px;
+            padding: 20px;
+            background: rgba(255,255,255,0.9);
+            border-radius: 15px;
+            text-align: center;
+            animation: popUp 0.5s ease-out;
+        }
+        #success-message h2 { color: #ff4b4b; margin: 0 0 10px 0; }
+        #success-message p { color: #555; }
+
+        @keyframes popUp {
+            from { transform: scale(0.8); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        /* --- 底部导航 --- */
+        .bottom-nav {
+            margin-top: 30px;
+        }
+        .btn-home {
+            text-decoration: none;
+            color: #0ea5e9;
+            font-weight: bold;
+            padding: 10px 20px;
+            background: rgba(255,255,255,0.6);
+            border-radius: 20px;
+        }
+
+        /* --- 新增：右下角导航箭头样式 --- */
+        #nav-footer {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            z-index: 1000;
+        }
+        .nav-label {
+            color: #0ea5e9;
+            font-size: 14px;
+            font-weight: bold;
+            text-shadow: 1px 1px 0px white;
+        }
+        .nav-arrow {
+            width: 50px;
+            height: 50px;
+            background: white;
+            border: 2px solid #0ea5e9;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            transition: 0.3s;
+            color: #0ea5e9;
+            font-size: 24px;
+            text-decoration: none;
+        }
+        .nav-arrow:hover {
+            background: #0ea5e9;
+            color: white;
+            transform: scale(1.1);
+        }
+    </style>
+</head>
+<body>
+
+    <h1>拼出我们最爱的瞬间</h1>
+    <p class="tip">点击两个方块交换位置，直到拼成完整的照片</p>
+
+    <div id="puzzle-container"></div>
+
+    <div id="success-message">
+        <h2>🎉 拼图成功！🎉</h2>
+        <p>就像我们的爱情，拼在一起才完美。</p>
+    </div>
+
+    <div class="bottom-nav">
+        <a href="index.html" class="btn-home">🏠 回到首页</a>
+    </div>
+
+    <div id="nav-footer">
+        <span class="nav-label">下一章：心愿娃娃机</span>
+        <a href="page4.html" class="nav-arrow">➔</a>
+    </div>
+
+    <script>
+        const container = document.getElementById('puzzle-container');
+        const successMsg = document.getElementById('success-message');
+        let pieces = [];
+        let selectedPiece = null;
+        const gridSize = 3;
+
+        function initGame() {
+            for (let i = 0; i < gridSize * gridSize; i++) {
+                pieces.push({
+                    correctIndex: i,
+                    element: createPieceElement(i)
+                });
+            }
+
+            shuffleArray(pieces);
+
+            pieces.forEach(pieceData => {
+                container.appendChild(pieceData.element);
+                pieceData.element.addEventListener('click', onPieceClick);
+            });
+        }
+
+        function createPieceElement(index) {
+            const div = document.createElement('div');
+            div.classList.add('puzzle-piece');
+            div.dataset.correctIndex = index;
+
+            const row = Math.floor(index / gridSize);
+            const col = index % gridSize;
+            const bgX = -col * 100; 
+            const bgY = -row * 100;
+            div.style.backgroundPosition = `${bgX}px ${bgY}px`;
+
+            return div;
+        }
+
+        function onPieceClick(e) {
+            const clickedPiece = e.target;
+            if (successMsg.style.display === 'block') return;
+
+            if (!selectedPiece) {
+                selectedPiece = clickedPiece;
+                clickedPiece.classList.add('selected');
+            } else if (selectedPiece === clickedPiece) {
+                clickedPiece.classList.remove('selected');
+                selectedPiece = null;
+            } else {
+                swapPieces(selectedPiece, clickedPiece);
+                selectedPiece.classList.remove('selected');
+                selectedPiece = null;
+                setTimeout(checkWin, 300);
+            }
+        }
+
+        function swapPieces(piece1, piece2) {
+            const tempSpan = document.createElement('span');
+            container.insertBefore(tempSpan, piece1);
+            container.insertBefore(piece1, piece2);
+            container.insertBefore(piece2, tempSpan);
+            container.removeChild(tempSpan);
+        }
+
+        function checkWin() {
+            const currentDomPieces = Array.from(container.children);
+            let isWin = true;
+            for (let i = 0; i < currentDomPieces.length; i++) {
+                if (parseInt(currentDomPieces[i].dataset.correctIndex) !== i) {
+                    isWin = false;
+                    break;
+                }
+            }
+
+            if (isWin) {
+                successMsg.style.display = 'block';
+                container.style.border = '3px solid #4ade80';
+                container.style.gap = '0';
+            }
+        }
+
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+
+        initGame();
+    </script>
+</body>
+</html>

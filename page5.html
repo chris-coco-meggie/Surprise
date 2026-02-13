@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>最终章：白菜 & 猪猪的默契挑战</title>
+    <style>
+        :root { --primary: #4fc3f7; --bg: #e1f5fe; --accent: #0288d1; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: var(--bg); font-family: 'Microsoft YaHei', sans-serif; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+        
+        #game-box {
+            width: 95%; max-width: 420px; background: white; padding: 40px 25px;
+            border-radius: 30px; box-shadow: 0 15px 40px rgba(0,0,0,0.1);
+            text-align: center; position: relative; border: 4px solid #b3e5fc; z-index: 1;
+        }
+
+        h2 { color: var(--accent); margin-bottom: 10px; font-size: 24px; }
+        .sub-title { color: #90a4ae; font-size: 14px; margin-bottom: 30px; }
+        
+        .question-text { font-size: 1.2rem; color: #37474f; margin-bottom: 35px; line-height: 1.6; min-height: 80px; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+
+        .options { display: grid; grid-template-columns: 1fr; gap: 15px; }
+        .opt-btn {
+            padding: 18px; border: 2px solid #e1f5fe; border-radius: 15px;
+            cursor: pointer; transition: 0.3s; font-weight: bold; color: #0277bd;
+            background: #f1faff; font-size: 16px;
+        }
+        .opt-btn:active { transform: scale(0.95); }
+        .opt-btn:hover { background: #e1f5fe; transform: translateY(-2px); }
+        .opt-btn.correct { background: #e8f5e9 !important; border-color: #81c784 !important; color: #2e7d32 !important; }
+
+        /* 小丑遮罩层 */
+        #clown-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255, 255, 255, 0.98);
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 9999; animation: fadeIn 0.3s;
+        }
+        .clown-emoji { font-size: 100px; margin-bottom: 20px; }
+        .clown-text { color: #d46a7e; font-size: 22px; font-weight: bold; }
+        .timer-text { color: #90a4ae; margin-top: 10px; }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* 结果页面 */
+        #result-screen { display: none; animation: slideUp 0.8s ease; }
+        .score-box { font-size: 2.5rem; color: #ffa000; margin: 20px 0; font-weight: bold; }
+        .comment-detail { color: #546e7a; line-height: 1.6; margin-bottom: 35px; padding: 0 10px; }
+        
+        /* 下一页按钮样式 */
+        .btn-container { display: flex; flex-direction: column; gap: 15px; align-items: center; }
+        .nav-next {
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            padding: 15px 45px; background: #ff7043; color: white;
+            text-decoration: none; border-radius: 35px;
+            font-weight: bold; font-size: 18px;
+            box-shadow: 0 8px 20px rgba(255,112,67,0.3);
+            transition: 0.3s;
+        }
+        .nav-next:hover { transform: translateY(-3px) scale(1.05); box-shadow: 0 12px 25px rgba(255,112,67,0.4); }
+        
+        .nav-back { color: #90a4ae; text-decoration: none; font-size: 14px; }
+
+        @keyframes slideUp { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    </style>
+</head>
+<body>
+
+<div id="clown-overlay">
+    <div class="clown-emoji">🤡</div>
+    <div class="clown-text">默契掉线啦！</div>
+    <div class="timer-text">由于答错，惩罚 <span id="countdown">5</span> 秒后继续...</div>
+</div>
+
+<div id="game-box">
+    <div id="quiz-screen">
+        <div style="color: #90a4ae; font-size: 13px; margin-bottom: 5px;">猜猜白菜选什么</div>
+        
+        <h2>🏆 默契大挑战</h2>
+        <div class="sub-title" id="progress">第 1 / 8 题</div>
+        <div class="question-text" id="q-text">正在准备题目...</div>
+        <div class="options" id="options-grid"></div>
+    </div>
+    
+    <div id="result-screen">
+        <h2>📊 挑战报告</h2>
+        <div class="score-box" id="final-comment">检测中...</div>
+        <p class="comment-detail" id="comment-text"></p>
+        
+        <div class="btn-container">
+            <a href="page6.html" class="nav-next">
+                开启第六章：爱心派对 ➔
+            </a>
+            <a href="index.html" class="nav-back">🏠 回到首页</a>
+        </div>
+    </div>
+</div>
+
+<script>
+    const quizData = [
+        { q: "谁在吵架时更容易先“投降”认错？", opts: ["白菜", "猪猪"], correct: 1 },
+        { q: "出门旅行时，谁更负责查攻略、看地图？", opts: ["白菜", "猪猪"], correct: 1 },
+        { q: "如果突然中了一千万，第一件事做什么？", opts: ["低调存起来", "立刻辞职去浪"], correct: 0 },
+        { q: "在外面迷路了，谁更愿意开口找路人问路？", opts: ["白菜", "猪猪"], correct: 1 },
+        { q: "谁更有可能在洗澡的时候大声唱歌？", opts: ["白菜", "猪猪"], correct: 0 },
+        { q: "谁更受不了家里有一丁点儿乱？", opts: ["白菜", "猪猪"], correct: 1 },
+        { q: "在合照时更执着于自己的角度美不美？", opts: ["白菜", "猪猪"], correct: 0 },
+        { q: "最后压轴：谁是这段关系里的大统领？", opts: ["白菜", "猪猪"], correct: 0 }
+    ];
+
+    let currentQ = 0;
+    let score = 0;
+    let canClick = true;
+
+    function loadQuestion() {
+        const q = quizData[currentQ];
+        document.getElementById('progress').innerText = `第 ${currentQ + 1} / ${quizData.length} 题`;
+        document.getElementById('q-text').innerText = q.q;
+        const grid = document.getElementById('options-grid');
+        grid.innerHTML = '';
+        
+        q.opts.forEach((opt, index) => {
+            const btn = document.createElement('div');
+            btn.className = 'opt-btn';
+            btn.innerText = opt;
+            btn.onclick = () => checkAnswer(index, btn);
+            grid.appendChild(btn);
+        });
+        canClick = true;
+    }
+
+    function checkAnswer(index, btn) {
+        if (!canClick) return;
+        canClick = false;
+
+        const q = quizData[currentQ];
+        if (index === q.correct) {
+            btn.classList.add('correct');
+            score++;
+            setTimeout(nextQuestion, 800);
+        } else {
+            showClownPunishment();
+        }
+    }
+
+    function showClownPunishment() {
+        const overlay = document.getElementById('clown-overlay');
+        const countdownSpan = document.getElementById('countdown');
+        overlay.style.display = 'flex';
+        
+        let timeLeft = 5;
+        countdownSpan.innerText = timeLeft;
+
+        const timer = setInterval(() => {
+            timeLeft--;
+            countdownSpan.innerText = timeLeft;
+            if (timeLeft <= 0) {
+                clearInterval(timer);
+                overlay.style.display = 'none';
+                nextQuestion();
+            }
+        }, 1000);
+    }
+
+    function nextQuestion() {
+        currentQ++;
+        if (currentQ < quizData.length) {
+            loadQuestion();
+        } else {
+            showResult();
+        }
+    }
+
+    function showResult() {
+        document.getElementById('quiz-screen').style.display = 'none';
+        document.getElementById('result-screen').style.display = 'block';
+        
+        let comment = "";
+        let detail = "";
+        
+        if (score === 8) {
+            comment = "满分！天生一对";
+            detail = "白菜和猪猪的默契度达到 100%！建议原地领证，或者立刻开启下一关庆祝下！";
+        } else if (score >= 5) {
+            comment = "哎哟不错哦";
+            detail = `答对了 ${score} 题。虽然路上遇到了小丑挡路，但你们的灵魂核心依然高度契合！`;
+        } else {
+            comment = "相爱相杀";
+            detail = `只对了 ${score} 题？看来这一路小丑陪你们玩得很开心啊！白菜和猪猪要继续加油哦~`;
+        }
+        
+        document.getElementById('final-comment').innerText = comment;
+        document.getElementById('comment-text').innerText = detail;
+    }
+
+    loadQuestion();
+</script>
+</body>
+</html>

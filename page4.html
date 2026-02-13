@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>第四章：心愿娃娃机</title>
+    <style>
+        :root { --primary: #ffafbd; --bg: #fff1f3; --accent: #d46a7e; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: var(--bg); overflow: hidden; font-family: 'Microsoft YaHei', sans-serif; }
+        
+        /* 加载界面 */
+        #loader { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999; }
+        
+        /* UI 层 */
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; visibility: hidden; }
+        #header { position: absolute; top: 30px; width: 100%; text-align: center; color: var(--accent); }
+        #count-tip { font-size: 14px; opacity: 0.8; margin-top: 5px; }
+
+        /* 操作按钮 */
+        #controls { position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%); pointer-events: auto; }
+        .btn { 
+            padding: 15px 40px; background: white; border: 3px solid var(--primary); 
+            border-radius: 40px; color: var(--accent); cursor: pointer; 
+            font-weight: bold; box-shadow: 0 4px 15px rgba(0,0,0,0.1); font-size: 18px; 
+            transition: 0.3s;
+        }
+        .btn:hover { transform: scale(1.05); background: var(--primary); color: white; }
+
+        /* 下一页跳转链接 */
+        #next-link {
+            position: fixed; bottom: 30px; right: 30px; 
+            display: flex; align-items: center; gap: 10px;
+            text-decoration: none; color: var(--accent);
+            font-weight: bold; font-size: 14px;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 10px 15px; border-radius: 25px;
+            border: 1px solid var(--primary);
+            transition: 0.3s; z-index: 100;
+            pointer-events: auto;
+        }
+        #next-link:hover { background: white; transform: translateX(5px); box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .arrow-circle { width: 30px; height: 30px; background: var(--primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 18px; }
+
+        /* 弹窗与提示 */
+        #wish-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0); width: 280px; background: white; border-radius: 20px; padding: 25px; text-align: center; z-index: 10000; border: 3px solid var(--primary); transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        #wish-modal.active { transform: translate(-50%, -50%) scale(1); }
+        #status-msg { position: fixed; top: 120px; width: 100%; text-align: center; color: var(--accent); font-weight: bold; font-size: 20px; opacity: 0; transition: 0.3s; pointer-events: none; }
+        
+        #container { width: 100%; height: 100%; }
+    </style>
+</head>
+<body>
+
+<div id="loader"><p style="color: var(--accent); font-size: 18px;">🧸 娃娃机正在搬运中...</p></div>
+<div id="status-msg">哎呀，手抖了！</div>
+
+<div id="ui-layer">
+    <div id="header">
+        <h2 style="margin:0;">🧸 心愿娃娃机</h2>
+        <p id="count-tip">这是第 1 次抓取</p>
+    </div>
+
+    <div id="controls">
+        <button class="btn" onclick="startGrip()">下爪抓取！</button>
+    </div>
+
+    <a href="page5.html" id="next-link">
+        <span>第五章：默契挑战</span>
+        <div class="arrow-circle">➔</div>
+    </a>
+</div>
+
+<div id="wish-modal">
+    <h3 style="color:var(--accent);">🎊 抓到了！</h3>
+    <p id="wish-text" style="font-weight:bold; color:#555; margin: 20px 0;"></p>
+    <button class="btn" style="font-size:14px; padding:10px 25px;" onclick="closeModal()">放回去</button>
+</div>
+
+<div id="container"></div>
+
+<script src="https://cdn.bootcdn.net/ajax/libs/three.js/r128/three.min.js"></script>
+
+<script>
+    let scene, camera, renderer, claw, balls = [];
+    let isClawing = false;
+    let attemptCount = 0; 
+    const wishes = ["去一个没听说过的小镇", "一起露营看星空", "一起研究一道复杂的菜", "《双人成行》通关", "为对方定制一个专属气味",  "给未来的对方写一封信", "互相给对方画肖像", "一起组装一件大家具"];
+
+    function init() {
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xfff1f3);
+        camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 100);
+        camera.position.set(0, 2, 12);
+
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        document.getElementById('container').appendChild(renderer.domElement);
+
+        const light = new THREE.AmbientLight(0xffffff, 1.2);
+        scene.add(light);
+
+        // 简化的透明外壳
+        const box = new THREE.Mesh(new THREE.BoxGeometry(7, 8, 6), new THREE.MeshPhongMaterial({color: 0xffffff, transparent: true, opacity: 0.1}));
+        scene.add(box);
+
+        // 爪子模型
+        claw = new THREE.Group();
+        const hook = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.4, 0.6), new THREE.MeshPhongMaterial({color: 0x888888}));
+        const line = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 10), new THREE.MeshPhongMaterial({color: 0x999999}));
+        line.position.y = 5;
+        claw.add(hook, line);
+        claw.position.y = 4;
+        scene.add(claw);
+
+        // 40个心愿球
+        const ballGeo = new THREE.SphereGeometry(0.4, 16, 16);
+        for(let i=0; i<40; i++) {
+            const mat = new THREE.MeshPhongMaterial({color: new THREE.Color(`hsl(${Math.random()*360}, 70%, 80%)`)});
+            const ball = new THREE.Mesh(ballGeo, mat);
+            ball.position.set((Math.random()-0.5)*6, -2.5, (Math.random()-0.5)*5);
+            ball.userData.wish = wishes[i % wishes.length];
+            ball.userData.originY = -2.5;
+            balls.push(ball);
+            scene.add(ball);
+        }
+
+        document.getElementById('loader').style.display = 'none';
+        document.getElementById('ui-layer').style.visibility = 'visible';
+        animate();
+    }
+
+    function startGrip() {
+        if(isClawing) return;
+        isClawing = true;
+        attemptCount++;
+        document.getElementById('count-tip').innerText = `这是第 ${attemptCount} 次抓取`;
+        
+        const target = balls[Math.floor(Math.random()*balls.length)];
+        claw.position.x = target.position.x;
+        claw.position.z = target.position.z;
+
+        let state = 'down';
+        let startTime = Date.now();
+        
+        // 保底机制：第5次必中，其余30%概率成功
+        let willDrop = (attemptCount % 4 === 0) ? false : (Math.random() > 0.3);
+
+        const move = () => {
+            let elapsed = Date.now() - startTime;
+            if(state === 'down') {
+                if(claw.position.y > target.position.y + 0.4) {
+                    claw.position.y -= 0.12;
+                    requestAnimationFrame(move);
+                } else {
+                    state = 'up';
+                    startTime = Date.now();
+                    setTimeout(move, 200);
+                }
+            } else if(state === 'up') {
+                claw.position.y += 0.08;
+                target.position.y = claw.position.y - 0.4;
+
+                // 触发甩球动作
+                if(willDrop && claw.position.y > 0.5) {
+                    shakeAndDrop(target);
+                    return;
+                }
+
+                if(claw.position.y < 4) {
+                    requestAnimationFrame(move);
+                } else {
+                    document.getElementById('wish-text').innerText = target.userData.wish;
+                    document.getElementById('wish-modal').classList.add('active');
+                    isClawing = false;
+                    attemptCount = 0; 
+                }
+            }
+        };
+        move();
+    }
+
+    function shakeAndDrop(target) {
+        document.getElementById('status-msg').style.opacity = 1;
+        let shakeCount = 0;
+        const shake = () => {
+            claw.position.x += Math.sin(shakeCount) * 0.25;
+            target.position.x = claw.position.x;
+            shakeCount += 0.6;
+            if(shakeCount < 12) {
+                requestAnimationFrame(shake);
+            } else {
+                dropBall(target);
+                document.getElementById('status-msg').style.opacity = 0;
+            }
+        };
+        shake();
+    }
+
+    function dropBall(target) {
+        const fall = () => {
+            if(target.position.y > target.userData.originY) {
+                target.position.y -= 0.25;
+                requestAnimationFrame(fall);
+            } else {
+                resetClaw();
+            }
+        };
+        fall();
+    }
+
+    function resetClaw() {
+        const back = () => {
+            if(claw.position.y < 4) {
+                claw.position.y += 0.15;
+                requestAnimationFrame(back);
+            } else {
+                isClawing = false;
+            }
+        };
+        back();
+    }
+
+    function closeModal() {
+        document.getElementById('wish-modal').classList.remove('active');
+        document.getElementById('count-tip').innerText = `这是第 1 次抓取`;
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        renderer.render(scene, camera);
+    }
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    window.onload = init;
+</script>
+</body>
+</html>
